@@ -1,0 +1,52 @@
+services:
+  web:
+    build:
+      context: .
+      dockerfile: infra/docker/Dockerfile
+    ports:
+      - "8000:8000"
+    environment:
+      PORT: "8000"
+      NODE_ENV: production
+      HARNESS_DATA_DIR: /app/data
+      HARNESS_ADMIN_TOKEN: ${HARNESS_ADMIN_TOKEN:?Set HARNESS_ADMIN_TOKEN in .env before starting}
+      HARNESS_INTEGRATION_TOKEN: ${HARNESS_INTEGRATION_TOKEN:-}
+      DEEPSEEK_API_KEY: ${DEEPSEEK_API_KEY:-}
+      DEEPSEEK_BASE_URL: ${DEEPSEEK_BASE_URL:-https://api.deepseek.com}
+      DEEPSEEK_MODEL: ${DEEPSEEK_MODEL:-deepseek-chat}
+    volumes:
+      - harness_data:/app/data
+    restart: unless-stopped
+  worker:
+    build:
+      context: .
+      dockerfile: infra/docker/Dockerfile
+    command: ["npx", "tsx", "apps/worker/src/main.ts"]
+    environment:
+      NODE_ENV: production
+      HARNESS_DATA_DIR: /app/data
+      HARNESS_WORKER_ID: worker-compose-1
+      HARNESS_ADMIN_TOKEN: ${HARNESS_ADMIN_TOKEN:?Set HARNESS_ADMIN_TOKEN in .env before starting}
+      DEEPSEEK_API_KEY: ${DEEPSEEK_API_KEY:-}
+      DEEPSEEK_BASE_URL: ${DEEPSEEK_BASE_URL:-https://api.deepseek.com}
+      DEEPSEEK_MODEL: ${DEEPSEEK_MODEL:-deepseek-chat}
+    volumes:
+      - harness_data:/app/data
+    restart: unless-stopped
+  qq:
+    profiles: ["qq"]
+    build:
+      context: .
+      dockerfile: infra/docker/Dockerfile
+    command: ["npx", "tsx", "packages/channels/src/qq/main.ts"]
+    environment:
+      NODE_ENV: production
+      HARNESS_INTEGRATION_TOKEN: ${HARNESS_INTEGRATION_TOKEN:?Set HARNESS_INTEGRATION_TOKEN in .env before starting QQ}
+      HARNESS_GATEWAY_URL: http://web:8000
+      QQ_APP_ID: ${QQ_APP_ID:-}
+      QQ_APP_SECRET: ${QQ_APP_SECRET:-}
+    depends_on:
+      - web
+    restart: unless-stopped
+volumes:
+  harness_data:

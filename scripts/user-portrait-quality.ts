@@ -1,0 +1,45 @@
+import assert from "node:assert/strict";
+import {mkdirSync,mkdtempSync,writeFileSync} from "node:fs";
+import {tmpdir} from "node:os";
+import path from "node:path";
+import {deepseek,projectRoot} from "@shared/config";
+import {isoNow} from "@shared/time";
+
+async function main(){
+  assert.ok(deepseek().apiKey,"需要配置真实模型");
+  process.env.HARNESS_DB_PATH=path.join(mkdtempSync(path.join(tmpdir(),"user-portrait-quality-")),"quality.sqlite3");
+  const db=await import("@infra/db");db.ready();const users=await import("@people/users");const memory=await import("@memory");const portrait=await import("../packages/memory/src/portrait");
+  users.getOrCreateUser("portrait-a","画像隔离A");users.getOrCreateUser("portrait-b","画像隔离B");
+  const add=(owner:string,role:string,content:string)=>db.run("INSERT INTO messages(user_id,channel,role,content,created_at) VALUES(?,'web',?,?,?)",owner,role,content,isoNow()).lastId;
+  add("portrait-a","assistant","我叫林知夏，你叫什么？");add("portrait-a","user","阿舟，你呢");
+  add("portrait-a","assistant","我21岁，在杭州读大学。你多大了？");add("portrait-a","user","23岁");
+  add("portrait-a","user","我在宁波工作，我喜欢摄影。聊天时回复短一点，别一直反问我。");
+  add("portrait-b","user","我叫小林，在苏州读大学。我喜欢猫，也喜欢详细一些的解释。");
+  const extracted=await Promise.all([memory.extractUnprocessedWithModel(20,"portrait-a"),memory.extractUnprocessedWithModel(20,"portrait-b")]);
+  assert.ok(extracted.every(item=>!("errors" in item)||!item.errors));memory.processPending();
+  console.log(JSON.stringify({stage:"memory_extracted",extracted}));
+  const aMemory=memory.listMemories("portrait-a").filter(item=>item.status==="active");
+  assert.ok(aMemory.some(item=>String(item.text).includes("阿舟")),"短回答的姓名没有进入长期记忆");
+  assert.ok(aMemory.some(item=>String(item.text).includes("23")),"短回答的年龄没有进入长期记忆");
+  assert.doesNotMatch(JSON.stringify(aMemory),/林知夏|21岁|小林|苏州/u);
+  const [a,b]=await Promise.all([portrait.refreshUserPortrait("portrait-a"),portrait.refreshUserPortrait("portrait-b")]);
+  console.log(JSON.stringify({stage:"two_portraits",ready:[a.portrait.status,b.portrait.status]}));
+  assert.equal(a.portrait.status,"ready");assert.equal(b.portrait.status,"ready");
+  const aText=JSON.stringify({summary:a.portrait.summary,traits:a.portrait.traits});const bText=JSON.stringify({summary:b.portrait.summary,traits:b.portrait.traits});
+  assert.match(aText,/阿舟/u);assert.match(aText,/23/u);assert.match(aText,/摄影/u);assert.doesNotMatch(aText,/林知夏|21岁|小林|苏州/u);
+  assert.match(bText,/小林/u);assert.match(bText,/猫/u);assert.doesNotMatch(bText,/阿舟|摄影|宁波/u);
+  add("portrait-a","user","刚才年龄打错了，我实际是24岁，不是23岁。");memory.remember("portrait-a","用户更正年龄为24岁","age",4);
+  const corrected=await portrait.refreshUserPortrait("portrait-a");
+  assert.match(JSON.stringify({summary:corrected.portrait.summary,traits:corrected.portrait.traits}),/24/u);
+  const {scheduleUserPortrait}=await import("../packages/memory/src/portrait-jobs");
+  for(let index=0;index<3;index++)add("portrait-a","user",`换个话题聊聊，这是新消息${index}`);
+  const job=scheduleUserPortrait("portrait-a");assert.ok(job);assert.equal(scheduleUserPortrait("portrait-a"),null);
+  db.run("UPDATE jobs SET run_at=? WHERE id=?",isoNow(),job);const done=await (await import("@worker/loop")).runOnce();assert.equal(done?.kind,"user_portrait");
+  assert.equal(db.one("SELECT status FROM jobs WHERE id=?",job)?.status,"completed");
+  console.log(JSON.stringify({stage:"automatic_refresh",passed:true}));
+  for(const item of memory.listMemories("portrait-a").filter(item=>String(item.text).includes("摄影")))memory.forget("portrait-a",Number(item.id));
+  const regenerated=await portrait.refreshUserPortrait("portrait-a");assert.doesNotMatch(JSON.stringify(regenerated.portrait),/摄影/u,"删除的记忆不能从旧原话自动复活");
+  const result={tested_at:isoNow(),model:deepseek().model,isolated:true,extracted,checks:{short_answer_memory:true,role_and_user_separated:true,two_users_isolated:true,evidence_validated:true,latest_correction:true,automatic_worker_refresh:true,deletion_does_not_resurrect:true},portraits:[{user:"synthetic-a",summary:a.portrait.summary,traits:a.portrait.traits},{user:"synthetic-b",summary:b.portrait.summary,traits:b.portrait.traits}],passed:true};
+  mkdirSync(path.join(projectRoot(),"data"),{recursive:true});writeFileSync(path.join(projectRoot(),"data","user-portrait-quality-latest.json"),JSON.stringify(result,null,2));console.log(JSON.stringify({passed:true,checks:result.checks,extracted}));
+}
+main().catch((error:unknown)=>{console.error(error instanceof Error?`${error.message} ${JSON.stringify(error.cause??"")}`:String(error));process.exitCode=1;});

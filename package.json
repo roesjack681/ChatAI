@@ -1,0 +1,44 @@
+{
+  "name": "chatai",
+  "private": true,
+  "scripts": {
+    "dev": "next dev apps/console -p 8000 --turbopack",
+    "build": "next build apps/console",
+    "start": "next start apps/console -p 8000",
+    "worker": "tsx apps/worker/src/main.ts",
+    "qq": "tsx packages/channels/src/qq/main.ts",
+    "test": "tsx --test tests/**/*.test.ts",
+    "test:deepseek": "tsx scripts/deepseek-smoke.ts",
+    "test:conversation": "tsx scripts/conversation-quality.ts",
+    "test:vision": "tsx scripts/vision-smoke.ts",
+    "test:knowledge": "tsx scripts/knowledge-smoke.ts",
+    "test:social": "tsx scripts/social-quality.ts",
+    "test:contracts": "tsx scripts/contracts-quality.ts",
+    "test:reliability": "tsx scripts/reliability-quality.ts",
+    "test:everyday": "tsx scripts/everyday-quality.ts",
+    "test:character": "tsx scripts/character-quality.ts",
+    "test:agency": "tsx scripts/agency-quality.ts",
+    "test:portrait": "tsx scripts/user-portrait-quality.ts",
+    "memory:rebuild": "tsx scripts/rebuild-user-memory.ts",
+    "test:production": "tsx scripts/production-smoke.ts",
+    "data:complete": "tsx scripts/complete-data.ts",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "blakejs": "^1.2.1",
+    "next": "^15.5.6",
+    "react": "^19.1.1",
+    "react-dom": "^19.1.1",
+    "sharp": "^0.35.5",
+    "tsx": "^4.20.6"
+  },
+  "devDependencies": {
+    "@types/node": "^22.19.0",
+    "@types/react": "^19.1.13",
+    "@types/react-dom": "^19.1.9",
+    "typescript": "^5.9.3"
+  },
+  "overrides": {
+    "postcss": "8.5.23"
+  }
+}

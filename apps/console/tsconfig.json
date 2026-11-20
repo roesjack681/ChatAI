@@ -1,0 +1,29 @@
+{
+  "extends": "../../tsconfig.json",
+  "compilerOptions": {
+    "plugins": [
+      {
+        "name": "next"
+      }
+    ],
+    "baseUrl": "../..",
+    "jsx": "preserve",
+    "noEmit": true,
+    "incremental": true,
+    "allowJs": false
+  },
+  "include": [
+    "**/*.ts",
+    "**/*.tsx",
+    "../../apps/gateway/**/*.ts",
+    "../../apps/worker/**/*.ts",
+    "../../infra/**/*.ts",
+    "../../packages/**/*.ts",
+    ".next-harness/types/**/*.ts",
+    ".next/types/**/*.ts",
+    "next-env.d.ts"
+  ],
+  "exclude": [
+    "node_modules"
+  ]
+}
